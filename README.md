@@ -27,7 +27,6 @@ pnpm dev
 | `pnpm build`   | Production build → `dist/`                 |
 | `pnpm preview` | Preview the built site locally             |
 | `pnpm lint`    | ESLint (strict TS + Tailwind rules)        |
-| `pnpm test`    | Vitest + RTL unit tests                    |
 
 ---
 
