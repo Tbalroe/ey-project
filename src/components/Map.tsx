@@ -1,5 +1,5 @@
-import { useState } from "react";
-import Map, { MapMouseEvent } from "react-map-gl/mapbox";
+import { useRef, useState } from "react";
+import Map, { MapMouseEvent, MapRef } from "react-map-gl/mapbox";
 import { useFetchPlace } from "@/hooks/queries/mapboxQueries/useFetchPlace";
 import { useWeather } from "@/hooks/queries/openWeatherMapQueries/useWeather";
 import SearchBox from "./SearchBox";
@@ -16,6 +16,7 @@ interface Place extends Coords {
 
 export function MapView() {
   const [coords, setCoords] = useState<Coords | null>(null);
+  const [unit, setUnit] = useState<"metric" | "imperial">("metric");
 
   const { data: place } = useFetchPlace(
     coords?.lat ?? null,
@@ -23,7 +24,7 @@ export function MapView() {
   );
   const { data: weather } = useWeather(coords?.lat, coords?.lon);
 
-  const [unit, setUnit] = useState<"metric" | "imperial">("metric");
+  const mapRef = useRef<MapRef>(null);
 
   const handleMapClick = (e: MapMouseEvent) => {
     const { lat, lng } = e.lngLat;
@@ -32,11 +33,17 @@ export function MapView() {
 
   const handleSearchPick = (loc: Place) => {
     setCoords({ lat: loc.lat, lon: loc.lon });
+    mapRef.current?.flyTo({
+      center: [loc.lon, loc.lat],
+      zoom: 8,
+      essential: true,
+    });
   };
 
   return (
     <div className="relative h-full w-full rounded-2xl overflow-hidden">
       <Map
+        ref={mapRef}
         mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
         initialViewState={{ longitude: -122.4, latitude: 37.8, zoom: 12 }}
         mapStyle="mapbox://styles/mapbox/streets-v12"
