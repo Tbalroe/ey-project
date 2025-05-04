@@ -1,84 +1,89 @@
-import { useState, useEffect, useRef, KeyboardEvent, ChangeEvent } from "react";
+import { ChangeEvent, KeyboardEvent, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Place } from "@/api/mapboxApi";
-import { useDebouncedValue } from "@/hooks/useDebounce";
-import { usePlaceSuggestions } from "@/hooks/queries/mapboxQueries/usePlaceSuggestions";
 
-interface Props {
-  onSelectLocation: (loc: { lat: number; lon: number; name: string }) => void;
+export interface Suggestion {
+  id: string;
+  name: string;
+  full: string;
+  lat: number;
+  lon: number;
 }
 
-export default function SearchBox({ onSelectLocation }: Props) {
-  const [query, setQuery] = useState("");
-  const debounced = useDebouncedValue(query, 300);
+interface Props {
+  query: string;
+  suggestions: Suggestion[];
+  loading: boolean;
+  error: boolean;
+  onQueryChange: (value: string) => void;
+  onPick: (s: Suggestion) => void;
+  open: boolean;
+  setOpen: (o: boolean) => void;
+}
 
-  const [highlight, setHighlight] = useState(0);
-  const [isOpen, setIsOpen] = useState(false);
+export function SearchBox({
+  query,
+  suggestions,
+  loading,
+  error,
+  onQueryChange,
+  onPick,
+  open,
+  setOpen,
+}: Props) {
+  const highlightRef = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const { data: suggestions = [], isFetching } = usePlaceSuggestions(
-    debounced,
-    isOpen
-  );
+  useEffect(() => {
+    highlightRef.current = 0;
+  }, [suggestions]);
 
   useEffect(() => {
-    if (suggestions.length && !isFetching) setIsOpen(true);
-  }, [suggestions, isFetching]);
+    listRef.current?.children[highlightRef.current]?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [highlightRef.current, suggestions]);
 
-  useEffect(() => {
-    const el = listRef.current?.children[highlight] as HTMLElement | undefined;
-    el?.scrollIntoView({ block: "nearest" });
-  }, [highlight]);
-
-  const pick = (p: Place) => {
-    onSelectLocation({ lat: p.lat, lon: p.lon, name: p.full });
-    setQuery(p.full);
-    setIsOpen(false);
+  const pick = (s: Suggestion) => {
+    onPick(s);
+    onQueryChange(s.full);
+    setOpen(false);
   };
 
   const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (!isOpen) return;
+    if (!open) return;
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlight((h) => (h + 1) % suggestions.length);
+      highlightRef.current = (highlightRef.current + 1) % suggestions.length;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlight((h) => (h - 1 + suggestions.length) % suggestions.length);
+      highlightRef.current =
+        (highlightRef.current - 1 + suggestions.length) % suggestions.length;
     }
     if (e.key === "Enter") {
       e.preventDefault();
-      pick(suggestions[highlight]);
+      pick(suggestions[highlightRef.current]);
     }
     if (e.key === "Escape") {
       e.preventDefault();
-      setIsOpen(false);
+      setOpen(false);
     }
   };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setQuery(value);
-    setHighlight(0);
-
-    if (value.trim().length >= 3) {
-      setIsOpen(true);
-    } else {
-      setIsOpen(false);
-    }
+    onQueryChange(e.target.value);
+    setOpen(true);
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
     const next = e.relatedTarget as HTMLElement | null;
-    if (!next || !e.currentTarget.contains(next)) {
-      setIsOpen(false);
-    }
+    if (!next || !e.currentTarget.contains(next)) setOpen(false);
   };
 
   return (
-    <div className="relative w-full sm:w-72 " tabIndex={-1} onBlur={handleBlur}>
+    <div className="relative w-full sm:w-72" tabIndex={-1} onBlur={handleBlur}>
       <Input
         type="search"
         placeholder="Search location…"
@@ -89,23 +94,32 @@ export default function SearchBox({ onSelectLocation }: Props) {
         className="bg-white"
       />
 
-      {isOpen && (
+      {open && (
         <Card
           ref={listRef}
           className="absolute z-10 mt-1 max-h-64 w-full overflow-auto p-0"
         >
-          {suggestions.map((place, idx) => (
+          {loading && (
+            <div className="px-3 py-2 text-xs text-gray-500">Loading…</div>
+          )}
+          {error && (
+            <div className="px-3 py-2 text-xs text-red-600">
+              Couldn’t load suggestions
+            </div>
+          )}
+
+          {suggestions.map((s, i) => (
             <button
-              key={place.id}
+              key={s.id}
               type="button"
-              onClick={() => pick(place)}
-              onMouseEnter={() => setHighlight(idx)}
+              onClick={() => pick(s)}
+              onMouseEnter={() => (highlightRef.current = i)}
               className={`block w-full px-3 py-2 text-left text-sm hover:bg-gray-100 ${
-                idx === highlight ? "bg-gray-100" : ""
+                highlightRef.current === i ? "bg-gray-100" : ""
               }`}
             >
-              <span className="font-medium">{place.name}</span>
-              <span className="block text-xs text-gray-500">{place.full}</span>
+              <span className="font-medium">{s.name}</span>
+              <span className="block text-xs text-gray-500">{s.full}</span>
             </button>
           ))}
         </Card>
